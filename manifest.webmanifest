@@ -1,0 +1,14 @@
+{
+  "name": "XAUUSD TradeLine Pro",
+  "short_name": "TradeLine Pro",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "./XAUUSD_TradeLine_PRO.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#080c12",
+  "theme_color": "#080c12",
+  "icons": [
+    {"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
