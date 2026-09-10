@@ -814,6 +814,7 @@
                         <th>TP</th>
                         <th>خروج</th>
                         <th>نتیجه</th>
+                        <th>کندل برگشتی</th>
                         <th>R:R</th>
                         <th>R واقعی</th>
                         <th>سود/زیان ($)</th>
@@ -1305,6 +1306,15 @@
 
             </div>
 
+            <div class="field">
+                <label>کندل برگشتی</label>
+                <select id="fReversalCandle" required>
+                    <option value="confirmed">ورود بر اساس کندل برگشتی بود</option>
+                    <option value="early">ورود بر اساس کندل برگشتی نبود (ورود زود هنگام)</option>
+                </select>
+                <small id="reversalPlanHint" style="display:block;margin-top:6px;color:var(--secondary)">طبق پلن: ورود بر اساس کندل برگشتی انجام شده است.</small>
+            </div>
+
 
             <div class="field">
 
@@ -1759,6 +1769,9 @@ function loadData(){
     const savedRiskSettings=localStorage.getItem('xauusd_tradeline_risk_v1');
     if(savedRiskSettings){ try{ riskSettings={...riskSettings,...JSON.parse(savedRiskSettings)}; }catch(e){ console.warn(e); } }
 
+    /* Backward compatibility for older saved trades */
+    trades = trades.map(t=>({...t,reversalCandle:t.reversalCandle==='early'?'early':'confirmed'}));
+
     /* Validation */
 
     if(
@@ -1929,7 +1942,7 @@ function renderTrades(){
 
         <tr>
 
-            <td colspan="15">
+            <td colspan="16">
 
                 <div class="empty-msg">
 
@@ -2030,6 +2043,12 @@ function renderTrades(){
 
                 </span>
 
+            </td>
+
+            <td>
+                <span class="status ${trade.reversalCandle === 'early' ? 'status-sl' : 'status-tp'}">
+                    ${trade.reversalCandle === 'early' ? 'ورود زودهنگام' : 'طبق پلن'}
+                </span>
             </td>
 
             <td>
@@ -3905,7 +3924,8 @@ function openModal(){
             ? 'TP'
             : settings.results[0];
 
-
+    document.getElementById('fReversalCandle').value = 'confirmed';
+    updateReversalPlanHint();
     updateModalPnl();
 
 
@@ -3926,6 +3946,17 @@ function closeModal(){
 
 }
 
+
+/* =====================================================
+   REVERSAL CANDLE / PLAN ADHERENCE
+===================================================== */
+function updateReversalPlanHint(){
+    const el=document.getElementById('reversalPlanHint');
+    const select=document.getElementById('fReversalCandle');
+    if(!el || !select) return;
+    if(select.value==='early') el.innerHTML='<span class="red"><b>هشدار:</b> ورود زودهنگام بوده و طبق پلن عمل نشده است.</span>';
+    else el.innerHTML='<span class="green"><b>طبق پلن:</b> ورود بر اساس کندل برگشتی انجام شده است.</span>';
+}
 
 /* =====================================================
    MODAL PNL
@@ -4041,6 +4072,11 @@ document
                 result:
                     document
                         .getElementById('fResult')
+                        .value,
+
+                reversalCandle:
+                    document
+                        .getElementById('fReversalCandle')
                         .value
 
             };
@@ -4163,7 +4199,8 @@ document
     'fStop',
     'fTake',
     'fExit',
-    'fResult'
+    'fResult',
+    'fReversalCandle'
 ].forEach(id=>{
 
 
@@ -4183,6 +4220,9 @@ document
     );
 
 });
+
+const reversalSelect=document.getElementById('fReversalCandle');
+if(reversalSelect) reversalSelect.addEventListener('change',updateReversalPlanHint);
 
 
 /* =====================================================
@@ -4679,6 +4719,11 @@ document
                             'نتیجه':
                                 trade.result,
 
+                            'کندل برگشتی':
+                                trade.reversalCandle === 'early'
+                                ? 'ورود زودهنگام (عدم رعایت پلن)'
+                                : 'ورود بر اساس کندل برگشتی (طبق پلن)',
+
                             'R:R هدف':
                                 Number(
                                     safeNumber(
@@ -5061,6 +5106,7 @@ document
                 'TP',
                 'Exit',
                 'Result',
+                'Reversal Candle',
                 'Target RR',
                 'Realized R',
                 'PnL'
@@ -5089,6 +5135,10 @@ document
                         trade.exit,
 
                         trade.result,
+
+                        trade.reversalCandle === 'early'
+                            ? 'Early Entry (Plan Not Followed)'
+                            : 'Reversal Candle (Plan Followed)',
 
                         trade.targetRR,
 
@@ -5510,6 +5560,8 @@ function buildBehaviorAnalysis(){
     const wins=closed.filter(t=>t.result==='TP');
     const losses=closed.filter(t=>t.result==='SL');
     const free=trades.filter(t=>t.result==='Free').length;
+    const reversalConfirmed=trades.filter(t=>t.reversalCandle==='confirmed').length;
+    const earlyEntries=trades.filter(t=>t.reversalCandle==='early').length;
     const totalPnl=trades.reduce((a,t)=>a+safeNumber(t.pnl),0);
     const wr=closed.length?wins.length/closed.length*100:0;
     const avgR=closed.length?closed.reduce((a,t)=>a+safeNumber(t.realizedR),0)/closed.length:0;
@@ -5523,6 +5575,8 @@ function buildBehaviorAnalysis(){
     lines.push(`وین‌ریت واقعی: <b>${wr.toFixed(2)}%</b> | مجموع R: <b>${(avgR*closed.length).toFixed(2)+'R'}</b>`);
     lines.push(`میانگین R بردها: <b>${avgWinR.toFixed(2)}R</b> | میانگین R باخت‌ها: <b>${avgLossR.toFixed(2)}R</b>`);
     lines.push(`سود/زیان کل: <b>${formatMoney(totalPnl)}$</b>`);
+    lines.push(`کندل برگشتی: <b>${reversalConfirmed}</b> طبق پلن | <span class="${earlyEntries?'red':''}"><b>${earlyEntries}</b> ورود زودهنگام</span>`);
+    if(earlyEntries>0) lines.push(`<span class="red">در ${earlyEntries} معامله ورود قبل از تأیید کندل برگشتی ثبت شده؛ این معاملات به‌عنوان «عدم رعایت پلن» علامت‌گذاری شده‌اند.</span>`);
     if(bestSetup) lines.push(`بهترین Setup از نظر وین‌ریت: <b>${escapeHtml(bestSetup.setup)}</b> (${bestSetup.wr.toFixed(2)}%)`);
     if(overRisk) lines.push(`<span class="red">${overRisk} معامله بیشتر از ریسک پیش‌فرض ثبت شده است.</span>`);
     if(wr<40 && closed.length>=10) lines.push('<span class="yellow">وین‌ریت پایین است؛ قبل از افزایش ریسک، کیفیت نمونه معاملات را بررسی کن.</span>');
@@ -5533,7 +5587,7 @@ function buildBehaviorAnalysis(){
 function renderBehavior(){ const el=document.getElementById('behaviorSummary'); if(el) el.innerHTML='• '+buildBehaviorAnalysis(); updateRiskPreview(); }
 function buildAIContext(){
     const closed=getClosedTrades();
-    return {initialCapital,trades:closed.map(t=>({date:t.date,type:t.type,setup:t.setup,lot:t.lot,entry:t.entry,stop:t.stop,take:t.take,exit:t.exit,result:t.result,targetRR:t.targetRR,realizedR:t.realizedR,pnl:t.pnl,riskMoney:t.riskMoney})),riskPercent:riskSettings.riskPercent};
+    return {initialCapital,trades:closed.map(t=>({date:t.date,type:t.type,setup:t.setup,lot:t.lot,entry:t.entry,stop:t.stop,take:t.take,exit:t.exit,result:t.result,reversalCandle:t.reversalCandle||'confirmed',planFollowed:t.reversalCandle!=='early',targetRR:t.targetRR,realizedR:t.realizedR,pnl:t.pnl,riskMoney:t.riskMoney})),riskPercent:riskSettings.riskPercent};
 }
 async function runAIAnalysis(){
     const out=document.getElementById('aiOutput'); out.style.display='block'; out.innerHTML='در حال تحلیل...';
