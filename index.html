@@ -3385,6 +3385,10 @@ function reportItem(
 ===================================================== */
 
 function renderCharts(){
+    if(typeof Chart === 'undefined'){
+        console.warn('Chart.js is unavailable; charts skipped.');
+        return;
+    }
 
 
     /*
@@ -5613,7 +5617,7 @@ loadSettingsUI();
 updateAll();
 
 
-if('serviceWorker' in navigator && location.protocol!=='file:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+if('serviceWorker' in navigator && location.protocol!=='file:'){ navigator.serviceWorker.register('sw.js?v=2').catch(()=>{}); }
 
 console.log(
     'XAUUSD TradeLine Pro loaded successfully'
